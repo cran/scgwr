@@ -1,4 +1,8 @@
-395eb378a129cab79eeac4880a811be0 *DESCRIPTION
-fd15b6da2b3aadcf9ada52c53044dcee *NAMESPACE
-58e1456cdbfa72f52b1fa87fd3fb26b2 *R/scgwr.R
-26623e33389a9def5da71aabee8e3d49 *man/scgwr.Rd
+ad6ec6f85e1c6d3c042791894e378580 *DESCRIPTION
+8ee852d9795653c70bd95ecd0f32aa46 *NAMESPACE
+a8934bc0172797ba5a8aad1c661765eb *R/predict0.R
+3f48ae909cf0147a6f44052a642300f6 *R/scgwr.R
+3ce85ea2d1c2740fb78b304019f24003 *R/scgwr_p.R
+e0f6a3b5ccc0e6250edb7ee6b30c4caa *man/predict0.Rd
+ec3be5079bf85d4b64b17ae47379dd55 *man/scgwr.Rd
+9fc3825f8e770574995261a365a67fc5 *man/scgwr_p.Rd
