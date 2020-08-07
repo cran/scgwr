@@ -134,36 +134,8 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
       MM2 <- NULL
       G   <- matrix(1, nrow = knn - 1, ncol = p + 1)
     }
-    #for (i in 1:n_samp){
-    #  for (p0 in 1:p) G[, p0 + 1] <- G0[i, ]^(2^(p/2)/2^p0)
-    #  X_sub <- as.matrix(X[Did[i, ],])
-    #  y_sub <- y[Did[i, ]]
-    #  kk0   <- 1
-    #  for (k0 in 1:nx) {
-    #    GXp   <- G * X_sub[, k0]
-    #    if(approach=="AICc"){
-    #      GXp2<- G^2 * X_sub[, k0]
-    #    }
-    #    for (k1 in 1:(p + 1)) {
-    #      MM [(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp [,k1] * X_sub)
-    #      mm [(id_xy == k0) & (id_py == k1), i] <- sum(GXp[,k1] * y_sub)
-    #      if(approach=="AICc"){
-    #        MM2[(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp2[,k1] * X_sub)
-    #      }
-    #    }
-    #  }
-    #}
 
-    MM_0    <- rep(0, length(id_p))
-    mm_0    <- rep(0, sum(id_x1 == 1))
-    if(approach=="AICc"){
-      MM2_0 <- rep(0, length(id_p))
-    } else {
-      MM2_0 <- NULL
-    }
-
-    i     <- 1
-    MMall <- foreach(i = 1:n_samp, .combine='cbind',.export=c("nx"))%dopar%{
+    for (i in 1:n_samp){
       for (p0 in 1:p) G[, p0 + 1] <- G0[i, ]^(2^(p/2)/2^p0)
       X_sub <- as.matrix(X[Did[i, ],])
       y_sub <- y[Did[i, ]]
@@ -174,20 +146,13 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
           GXp2<- G^2 * X_sub[, k0]
         }
         for (k1 in 1:(p + 1)) {
-          MM_0 [(id_x1 == k0) & (id_p == k1)]  <- colSums(GXp[,k1] * X_sub)
-          mm_0 [(id_xy == k0) & (id_py == k1)] <- sum(GXp[,k1] * y_sub)
+          MM [(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp [,k1] * X_sub)
+          mm [(id_xy == k0) & (id_py == k1), i] <- sum(GXp[,k1] * y_sub)
           if(approach=="AICc"){
-            MM2_0[(id_x1 == k0) & (id_p == k1)]  <- colSums(GXp2[,k1] * X_sub)
+            MM2[(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp2[,k1] * X_sub)
           }
         }
       }
-      c(MM_0,mm_0,MM2_0)
-    }
-
-    MM  <- MMall[1:length(id_p),]
-    mm  <- MMall[(length(id_p)+1):(length(id_p)+sum(id_x1 == 1)),]
-    if(approach=="AICc"){
-      MM2  <- MMall[-(1:(length(id_p)+sum(id_x1 == 1))),]
     }
 
     return(list(MM=MM, MM2=MM2, mm=mm, XX0=XX0,Xy0=Xy0,id_p=id_p,id_x1=id_x1,id_x2=id_x2,
@@ -249,13 +214,6 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
   coords_samp<- coords[nlist,]
   X_samp     <- X[nlist,]
   y_samp     <- y[nlist]
-
-  if(is.null(cl)) {
-    cl <- makeCluster(detectCores(),setup_strategy = "sequential")
-  } else {
-    cl <- makeCluster(cl,setup_strategy = "sequential")
-  }
-  registerDoParallel(cl)
   misc       <- proc(coords=coords,coords_samp=coords_samp, X=X, y=y, X_samp=X_samp, y_samp=y_samp, knn=knn, approach=approach, kernel=kernel, p=p)
   MM         <- misc$MM
   MM2        <- misc$MM2
@@ -269,26 +227,29 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
   id_x2      <- misc$id_x2
   id_py      <- misc$id_py
   id_xy      <- misc$id_xy
-  #stopCluster(cl)
+
+
+  if(is.null(cl)) {
+    cl <- makeCluster(detectCores(),setup_strategy = "sequential")
+  } else {
+    cl <- makeCluster(cl,setup_strategy = "sequential")
+  }
+  setDefaultCluster(cl=cl)
 
   par0       <- c(1, 0.01)
   if(approach == "CV"){
-    setDefaultCluster(cl=NULL)
-    setDefaultCluster(cl=cl)
     res0    <- optimParallel(par=par0,fn = cv_score, X=X_samp,y=y_samp,p=p, MM=MM,mm=mm,nx=nx,id_x1=id_x1,
                              id_x2=id_x2,id_xy=id_xy,id_p=id_p,id_py=id_py,nsamp=nsamp,XX0=XX0,Xy0=Xy0,
-                             lower=c(-10,-Inf),upper=c(10,Inf))
-    setDefaultCluster(cl=NULL); stopCluster(cl)
+                             lower=c(-10,-Inf),upper=c(10,Inf),parallel=list(forward=FALSE,loginfo = FALSE))
     cvscore <- sqrt(res0$value/n)
   } else {
-    setDefaultCluster(cl=NULL)
-    setDefaultCluster(cl=cl)
     res0    <- optimParallel(par=par0,fn = ic_score, X=X_samp,y=y_samp,p=p,MM=MM,MM2=MM2,mm=mm,nx=nx,id_x1=id_x1,
                              id_x2=id_x2,id_xy=id_xy,id_p=id_p,id_py=id_py,nsamp=nsamp,XX0=XX0,Xy0=Xy0,
-                             lower=c(-10,-Inf),upper=c(10,Inf))
-    setDefaultCluster(cl=NULL); stopCluster(cl)
+                             lower=c(-10,-Inf),upper=c(10,Inf),parallel=list(forward=FALSE,loginfo = FALSE))
     cvscore <-NULL
   }
+  setDefaultCluster(cl=NULL); stopCluster(cl)
+
   par    <- res0$par
   par2   <- par^2
   if( 100001 >= n){#nsamp == n
@@ -310,12 +271,6 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
     }
   }
 
-  if(is.null(cl)) {
-    cl <- makeCluster(detectCores(),setup_strategy = "sequential")
-  } else {
-    cl <- makeCluster(cl,setup_strategy = "sequential")
-  }
-  registerDoParallel(cl)
   BETA       <-matrix(0,nrow=n,ncol=nx)
   BSE_no_sig <-BETA
   ENP        <-0
@@ -331,53 +286,25 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
       G0    <- exp(-Dnn$nn.dist/ban0)
     }
 
-    #MM <- matrix(0, ncol = n_iii, nrow = length(id_p))
-    #MM2<- matrix(0, ncol = n_iii, nrow = length(id_p))
-    #mm <- matrix(0, ncol = n_iii, nrow = sum(id_x1 == 1))
-    #for (i in 1:n_iii) {
-    #  G <- matrix(1, nrow = knn, ncol = p + 1)
-    #  for (p0 in 1:p) G[, p0 + 1] <- G0[i, ]^(2^(p/2)/2^p0)
-    #  X_sub <- as.matrix(X[Did[i, ],])
-    #  y_sub <- y[Did[i, ]]
-    #  kk0   <- 1
-    #  for (k0 in 1:nx) {
-    #    GXp <- G   * X_sub[, k0]
-    #    GXp2<- G^2 * X_sub[, k0]
-    #    for (k1 in 1:(p + 1)) {
-    #      MM [(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp [,k1] * X_sub)
-    #      MM2[(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp2[,k1] * X_sub)
-    #      mm [(id_xy == k0) & (id_py == k1), i] <- sum(GXp[,k1] * y_sub)
-    #    }
-    #  }
-    #}
-
-    MM_0  <- rep(0, length(id_p))
-    MM2_0 <- rep(0, length(id_p))
-    mm_0  <- rep(0, sum(id_x1 == 1))
-    G     <- matrix(1, nrow = knn, ncol = p + 1)
-    i     <- 1
-
-    MMall <- foreach(i = 1:n_iii, .combine='cbind')%dopar%{
-      #.export=c("nx","p","X","y","id_x1","id_xy","id_p","id_py")
+    MM <- matrix(0, ncol = n_iii, nrow = length(id_p))
+    MM2<- matrix(0, ncol = n_iii, nrow = length(id_p))
+    mm <- matrix(0, ncol = n_iii, nrow = sum(id_x1 == 1))
+    for (i in 1:n_iii) {
+      G <- matrix(1, nrow = knn, ncol = p + 1)
       for (p0 in 1:p) G[, p0 + 1] <- G0[i, ]^(2^(p/2)/2^p0)
       X_sub <- as.matrix(X[Did[i, ],])
       y_sub <- y[Did[i, ]]
       kk0   <- 1
       for (k0 in 1:nx) {
-        GXp   <- G   * X_sub[, k0]
-        GXp2  <- G^2 * X_sub[, k0]
+        GXp <- G   * X_sub[, k0]
+        GXp2<- G^2 * X_sub[, k0]
         for (k1 in 1:(p + 1)) {
-          MM_0 [(id_x1 == k0) & (id_p == k1)]  <- colSums(GXp[,k1] * X_sub)
-          MM2_0[(id_x1 == k0) & (id_p == k1)]  <- colSums(GXp2[,k1] * X_sub)
-          mm_0 [(id_xy == k0) & (id_py == k1)] <- sum(GXp[,k1] * y_sub)
+          MM [(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp [,k1] * X_sub)
+          MM2[(id_x1 == k0) & (id_p == k1), i]  <- colSums(GXp2[,k1] * X_sub)
+          mm [(id_xy == k0) & (id_py == k1), i] <- sum(GXp[,k1] * y_sub)
         }
       }
-      c(MM_0,mm_0,MM2_0)
     }
-
-    MM  <- MMall[1:length(id_p),]
-    mm  <- MMall[(length(id_p)+1):(length(id_p)+sum(id_x1 == 1)),]
-    MM2 <- MMall[-(1:(length(id_p)+sum(id_x1 == 1))),]
 
     R0   <- rep(par2[1], p + 1)
     for (r0 in 2:(p + 1)) R0[r0] <- par2[1]^r0
@@ -401,29 +328,18 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
       mmm_sub <- colSums(mmm[id_xy == ll1, ])
       mmmsum <- rbind(mmmsum, mmm_sub)
     }
-    #MMMlist <- list(NULL)
-    #MMMlist2<- list(NULL)
-    #mmmlist <- list(NULL)
-    #xxxlist <- list(NULL)# code is inefficient (it must not needed)
-    #for (ll3 in 1:n_iii) {
-    #  MMMlist[[ll3]] <- matrix(MMMsum[, ll3], nx, nx)  + par2[2] * XX0
-    #  MMMlist2[[ll3]]<- matrix(MMMsum2[, ll3], nx, nx) + par2[2] ^ 2 * XX0
-    #  mmmlist[[ll3]] <- mmmsum[, ll3] + par2[2] * Xy0
-    #  xxxlist[[ll3]] <- as.matrix( X[ilist[[iii]],] )[ll3,]
-    #}
 
-    ll3   <-1
-    MMMmmm<-foreach(ll3 = 1:n_iii, .combine = "c" )%dopar%{#, .export = c("nx","XX0","Xy0" )
-      l1  <-list(matrix(MMMsum[, ll3], nx, nx) + par2[2] * XX0)
-      l2  <-list(matrix(MMMsum2[, ll3], nx, nx) + par2[2] ^ 2 * XX0)
-      l3  <-list(mmmsum[, ll3] + par2[2] * Xy0)
-      l4  <-list( as.matrix( X[ilist[[iii]],] )[ll3,] )#
-      c(l1, l2, l3, l4)
+    MMMlist <- list(NULL)
+    MMMlist2<- list(NULL)
+    mmmlist <- list(NULL)
+    xxxlist <- list(NULL)# code is inefficient (it must not needed)
+    for (ll3 in 1:n_iii) {
+      MMMlist[[ll3]] <- matrix(MMMsum[, ll3], nx, nx)  + par2[2] * XX0
+      MMMlist2[[ll3]]<- matrix(MMMsum2[, ll3], nx, nx) + par2[2] ^ 2 * XX0
+      mmmlist[[ll3]] <- mmmsum[, ll3] + par2[2] * Xy0
+      xxxlist[[ll3]] <- as.matrix( X[ilist[[iii]],] )[ll3,]
     }
-    MMMlist <- MMMmmm[4*(1:n_iii)-3]
-    MMMlist2<- MMMmmm[4*(1:n_iii)-2]
-    mmmlist <- MMMmmm[4*(1:n_iii)-1]
-    xxxlist <- MMMmmm[4*(1:n_iii)]
+
     tryres  <- try(MMMinv <- lapply(MMMlist, solve), silent = TRUE)
     beta    <- t(matrix(unlist(mapply("%*%", MMMinv, mmmlist,
                                       SIMPLIFY = FALSE)), nrow = nx, ncol = n_iii))
@@ -448,7 +364,6 @@ scgwr_p    <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4,
     ENP     <-ENP + enp
     PRED[ilist[[iii]]]        <- pred
   }
-  stopCluster(cl)
 
   pred    <- PRED
   resid   <- y - pred
