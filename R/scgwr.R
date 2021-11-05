@@ -345,7 +345,7 @@ scgwr      <- function (coords, y, x=NULL, knn = 100, kernel = "gau", p = 4, app
 
   if(approach=="AICc"){
     if( !is.null( nsamp ) ){
-      message("nsamp is ignored because it is not available for the AICc-based estimation")
+      message("nsamp is ignored because it is currently not available for the AICc-based estimation")
     }
 
     nlist<-1:n

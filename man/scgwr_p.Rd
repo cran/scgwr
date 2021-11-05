@@ -38,7 +38,7 @@ Murakami, D., Tsutsumida, N., Yoshida, T., Nakaya, T., and Lu, B. (2019) Scalabl
 \code{\link{scgwr}}, \code{\link{predict0}}
 }
 \examples{
-# require(spData)
+# require(spData);require(sp)
 # data(house)
 # dat   <- data.frame(coordinates(house), house@data[,c("price","age","rooms","beds","syear")])
 # coords<- dat[ ,c("long","lat")]
