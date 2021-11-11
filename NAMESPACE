@@ -6,5 +6,8 @@ importFrom(parallel, makeCluster, detectCores, stopCluster, setDefaultCluster)
 import(sp)
 import(spData)
 export(scgwr)
+export(scgwr_p)
 export(predict0)
 S3method("print","scgwr")
+S3method("print","scgwr_p")
+
